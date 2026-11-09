@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mysync
+      POSTGRES_PASSWORD: mysync
+      POSTGRES_DB: mysync_registry
+    ports:
+      - "5432:5432"
+    volumes:
+      - mysync_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mysync -d mysync_registry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional: run registry against compose Postgres later.
+  # Default local registry uses SQLite (services/registry/data/registry.sqlite).
+
+volumes:
+  mysync_pg:

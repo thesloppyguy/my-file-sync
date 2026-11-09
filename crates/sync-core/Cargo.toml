@@ -1,0 +1,27 @@
+[package]
+name = "sync-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared libp2p swarm, protocols, and sync engine for my-file-sync"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+futures.workspace = true
+hex.workspace = true
+libp2p.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true

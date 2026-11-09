@@ -1,0 +1,12 @@
+{
+  "name": "my-file-sync-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "registry": "npm --prefix services/registry run dev",
+    "registry:start": "npm --prefix services/registry run start",
+    "desktop": "npm --prefix apps/desktop run tauri -- dev",
+    "desktop:build": "npm --prefix apps/desktop run tauri -- build",
+    "relay": "cargo run -p mysync-relay"
+  }
+}
