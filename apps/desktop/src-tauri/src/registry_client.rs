@@ -44,16 +44,18 @@ impl RegistryClient {
     }
 
     pub async fn request_otp(&self, email: &str) -> Result<()> {
+        let url = format!("{}/auth/request-otp", self.base_url);
         let res = self
             .http
-            .post(format!("{}/auth/request-otp", self.base_url))
+            .post(&url)
             .json(&serde_json::json!({ "email": email }))
             .send()
             .await
-            .context("request otp")?;
+            .with_context(|| format!("request otp ({url})"))?;
         if !res.status().is_success() {
+            let status = res.status();
             let body = res.text().await.unwrap_or_default();
-            return Err(anyhow!("request otp failed: {body}"));
+            return Err(anyhow!("request otp failed ({status}): {body}"));
         }
         Ok(())
     }

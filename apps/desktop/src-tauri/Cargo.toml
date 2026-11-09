@@ -1,8 +1,8 @@
 [package]
-name = "my-file-sync"
+name = "my-share"
 version = "0.1.0"
 description = "P2P file sync desktop client"
-authors = ["my-file-sync"]
+authors = ["sahil"]
 edition = "2021"
 
 [lib]
@@ -14,7 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 sync-core = { workspace = true }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
@@ -30,3 +30,4 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 uuid = { workspace = true }
 parking_lot = { workspace = true }
+dotenvy = "0.15"

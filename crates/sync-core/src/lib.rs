@@ -1,4 +1,4 @@
-//! Shared P2P sync core for my-file-sync.
+//! Shared P2P sync core for My Share.
 //!
 //! Provides libp2p swarm setup, custom file/sync/clipboard protocols,
 //! local SQLite indexing, and folder sync with last-write-wins semantics.
@@ -12,7 +12,9 @@ pub mod sync_engine;
 
 pub use clipboard::ClipboardPayload;
 pub use identity::{load_or_create_identity, Identity};
-pub use protocols::{FileChunkRequest, FileChunkResponse, FileOffer, SyncManifest, SyncManifestEntry};
+pub use protocols::{
+    FileChunkRequest, FileChunkResponse, FileOffer, SyncManifest, SyncManifestEntry,
+};
 pub use store::{AuthSession, LocalStore};
 pub use swarm::{NodeEvent, SyncNode, SyncNodeConfig};
 pub use sync_engine::{ConflictPolicy, SyncEngine, SyncPath};

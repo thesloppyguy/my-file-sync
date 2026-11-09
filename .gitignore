@@ -3,7 +3,6 @@
 **/node_modules
 **/dist
 **/.DS_Store
-services/registry/data
 *.sqlite
 *.sqlite-*
 .env

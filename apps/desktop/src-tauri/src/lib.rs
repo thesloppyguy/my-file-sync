@@ -5,15 +5,37 @@ use registry_client::{DeviceInfo, RegistryClient};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use sync_core::{
     load_or_create_identity, AuthSession, LocalStore, NodeEvent, SyncNode, SyncNodeConfig,
     SyncPath, TransferStatus,
 };
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 use tokio::sync::RwLock;
 
-const DEFAULT_REGISTRY: &str = "http://127.0.0.1:8787";
+const DEFAULT_REGISTRY: &str = "http://127.0.0.1:3000/api";
+const TRAY_ID: &str = "main";
+static ALLOW_EXIT: AtomicBool = AtomicBool::new(false);
+
+fn load_registry_env() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        PathBuf::from(".env"),
+        manifest_dir.join(".env"),
+        manifest_dir.join("../.env"),
+        manifest_dir.join("../../.env"),
+        manifest_dir.join("../../../.env"),
+    ];
+    for path in candidates {
+        if path.is_file() {
+            let _ = dotenvy::from_path(&path);
+            break;
+        }
+    }
+}
 
 struct AppState {
     registry: RegistryClient,
@@ -43,10 +65,17 @@ pub fn run() {
         )
         .init();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // Tray app: closing the window hides it instead of quitting.
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .setup(|app| {
             let app_dir = app
                 .path()
@@ -54,8 +83,11 @@ pub fn run() {
                 .unwrap_or_else(|_| PathBuf::from(".mysync-data"));
             std::fs::create_dir_all(&app_dir)?;
             let store = Arc::new(LocalStore::open(&app_dir.join("local.sqlite"))?);
+            load_registry_env();
             let registry_url = std::env::var("MYSYNC_REGISTRY_URL")
                 .unwrap_or_else(|_| DEFAULT_REGISTRY.to_string());
+            tracing::info!("registry url: {registry_url}");
+            let signed_in = store.get_session()?.is_some();
 
             let state = AppState {
                 registry: RegistryClient::new(registry_url),
@@ -66,6 +98,8 @@ pub fn run() {
                 app_dir: app_dir.clone(),
             };
             app.manage(state);
+
+            setup_tray(app.handle(), signed_in)?;
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -93,8 +127,82 @@ pub fn run() {
             unlink_device,
             logout
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, event| {
+        if let RunEvent::ExitRequested { api, .. } = event {
+            if !ALLOW_EXIT.load(Ordering::SeqCst) {
+                api.prevent_exit();
+            }
+        }
+    });
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+fn build_tray_menu(app: &AppHandle, signed_in: bool) -> tauri::Result<Menu<tauri::Wry>> {
+    let primary = if signed_in {
+        MenuItem::with_id(app, "open", "Open", true, None::<&str>)?
+    } else {
+        MenuItem::with_id(app, "sign_in", "Sign in", true, None::<&str>)?
+    };
+    let exit = MenuItem::with_id(app, "exit", "Exit my share", true, None::<&str>)?;
+    Menu::with_items(app, &[&primary, &exit])
+}
+
+fn refresh_tray_menu(app: &AppHandle, signed_in: bool) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        if let Ok(menu) = build_tray_menu(app, signed_in) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+}
+
+fn setup_tray(app: &AppHandle, signed_in: bool) -> tauri::Result<()> {
+    let menu = build_tray_menu(app, signed_in)?;
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .ok_or_else(|| tauri::Error::AssetNotFound("default window icon".into()))?;
+
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(icon)
+        .tooltip("My Share")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" | "sign_in" => {
+                show_main_window(app);
+                if event.id.as_ref() == "sign_in" {
+                    let _ = app.emit("tray-sign-in", ());
+                }
+            }
+            "exit" => {
+                ALLOW_EXIT.store(true, Ordering::SeqCst);
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+
+    Ok(())
 }
 
 async fn bootstrap_node(app: AppHandle) -> anyhow::Result<()> {
@@ -128,6 +236,9 @@ async fn bootstrap_node(app: AppHandle) -> anyhow::Result<()> {
                 Some(&session.device_name),
             )
             .await;
+        refresh_tray_menu(&app, true);
+    } else {
+        refresh_tray_menu(&app, false);
     }
 
     let mut events = node.subscribe();
@@ -235,6 +346,7 @@ async fn request_otp(state: State<'_, AppState>, email: String) -> Result<(), St
 
 #[tauri::command]
 async fn verify_otp(
+    app: AppHandle,
     state: State<'_, AppState>,
     email: String,
     otp: String,
@@ -277,6 +389,8 @@ async fn verify_otp(
     node.set_user_id(verified.user_id.clone())
         .await
         .map_err(|e| e.to_string())?;
+
+    refresh_tray_menu(&app, true);
 
     Ok(SessionView {
         email: verified.email,
@@ -367,9 +481,7 @@ async fn list_sync_paths(state: State<'_, AppState>) -> Result<Vec<SyncPath>, St
         .await
         .clone()
         .ok_or_else(|| "P2P node not ready".to_string())?;
-    node.sync_engine()
-        .list_paths()
-        .map_err(|e| e.to_string())
+    node.sync_engine().list_paths().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -433,7 +545,8 @@ async fn unlink_device(state: State<'_, AppState>, device_id: String) -> Result<
 }
 
 #[tauri::command]
-async fn logout(state: State<'_, AppState>) -> Result<(), String> {
-    state.store.clear_session().map_err(|e| e.to_string())
+async fn logout(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    state.store.clear_session().map_err(|e| e.to_string())?;
+    refresh_tray_menu(&app, false);
+    Ok(())
 }
-

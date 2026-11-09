@@ -4,8 +4,8 @@
 
 - `apps/desktop` — Tauri 2 + React client for macOS, Windows, and Linux
 - `crates/sync-core` — shared rust-libp2p swarm, file/sync/clipboard protocols, SQLite index
-- `services/registry` — Node/TS Fastify control plane (email OTP + device directory)
 - `services/relay` — libp2p circuit-relay v2 helper for NAT traversal
+- **mysync-registry** (separate repo) — hosted Fastify control plane (email OTP + device directory + website)
 
 ## Auth model
 
@@ -19,8 +19,9 @@ Same email = same account = sync group.
 
 ## Data vs control plane
 
-- Registry stores user/device metadata only (email, fingerprint hash, PeerId, multiaddrs).
+- Registry (hosted separately) stores user/device metadata only (email, fingerprint hash, PeerId, multiaddrs).
 - File bytes, sync payloads, and clipboard text travel over libp2p (Noise-encrypted transports).
+- Desktop clients discover the registry via `MYSYNC_REGISTRY_URL`.
 
 ## Protocols
 

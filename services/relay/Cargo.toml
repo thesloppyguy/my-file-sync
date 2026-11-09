@@ -3,7 +3,7 @@ name = "mysync-relay"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "libp2p circuit-relay v2 node for my-file-sync"
+description = "libp2p circuit-relay v2 node for My Share"
 
 [[bin]]
 name = "mysync-relay"

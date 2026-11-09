@@ -3,7 +3,7 @@ name = "sync-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Shared libp2p swarm, protocols, and sync engine for my-file-sync"
+description = "Shared libp2p swarm, protocols, and sync engine for My Share"
 
 [dependencies]
 anyhow.workspace = true
